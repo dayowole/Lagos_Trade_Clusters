@@ -1,0 +1,406 @@
+# Importing Libraries
+
+# Set up environment with libraries & data
+
+##############################################################################
+# Import libraries
+
+import pandas as pd                     # data sceince essentials
+import matplotlib.pyplot as plt         # essential graphical output
+import seaborn as sns                   # enhanced visualizations
+import numpy as np                      # mathematical essentials
+from tqdm.notebook import tqdm          # progress bars
+import time                             # time essentials
+import itertools
+
+t0 = time.time()                        # start time of notebook
+
+
+from sklearn.feature_selection import SelectFromModel   # feature selection
+from sklearn.model_selection import train_test_split    # train-test split
+from sklearn.model_selection import RandomizedSearchCV  # hyperparameter tuning
+from sklearn.linear_model import LogisticRegression     # logistic regression
+
+import statsmodels.formula.api as smf                   # logistic regression
+
+from sklearn import metrics                             # metrics
+from sklearn.metrics import confusion_matrix            # confusion matrix
+from sklearn.metrics import roc_auc_score               # auc score
+from sklearn.metrics import classification_report       # classification report
+from sklearn.metrics import make_scorer                 # customizable scorer
+
+
+
+from sklearn.cluster import KMeans                      # KMeans for segmentation
+
+from sklearn.preprocessing import StandardScaler        # standard scaler
+from sklearn.preprocessing import MinMaxScaler          # minmax scaler
+from sklearn.preprocessing import RobustScaler          # robust scaler
+
+from sklearn.neighbors import KNeighborsClassifier      # KNN for classification
+
+from sklearn.tree import DecisionTreeClassifier         # classification trees
+from sklearn.tree import export_graphviz                # exports graphics
+
+from sklearn.ensemble import RandomForestClassifier     # random forest
+from sklearn.ensemble import GradientBoostingClassifier # gbm
+
+from six import StringIO                                # saves objects in memory
+from IPython.display import Image                       # displays on frontend
+import pydotplus                                        # interprets dot objects
+
+from imblearn.over_sampling import SMOTE                # oversampling
+
+
+#############################################################################
+# Import data
+
+# Specify file name
+Alimosho = pd.read_csv('AlimoshoLGA_Cleaned.csv')
+
+#calling the top rows in the loaded data set
+Alimosho.head()
+
+#declaring the shape of the data
+Alimosho.shape
+
+#determining the dtypes of the variables
+Alimosho.info()
+
+#determining the NaNs in the data
+Alimosho.isna().sum()
+
+#descriptive analytics in the data for categorical variables
+Alimosho.describe(include = object)
+
+#descriptive analytics in the data for numerical variables
+Alimosho.describe()
+
+#cleaning the columns
+#columns rename
+Alimosho.rename(columns={"PH - Non Alcoholic Beverages": "_sellLRB"})
+
+#making bins in the data using beverage retail index
+## Beverage retail index is encoded variable for the Beverage Retail %
+Alimosho['Bin'] = pd.cut(Alimosho['Beverage Retail Index'], bins = 5)
+Alimosho.groupby('Bin')['Beverage Retail Index'].size()
+
+#making bins in the data using store selling area
+Alimosho['Bin'] = pd.cut(Alimosho['Store Selling Area (M2)'], bins = 5)
+Alimosho.groupby('Bin')['Store Selling Area (M2)'].size()
+
+#establishing a distribution for the numerical valuables to highlight trends
+
+variables = ['Store Selling Area (M2)', 'Beverage Retail Index']
+
+# Defining a function to plot variables
+def boxplot(data, x_variable):
+    """
+    Plot boxplots of count/integer variables
+    """
+    fig, ax = plt.subplots(1)
+    fig.set_size_inches(16,4)
+    fig.suptitle("Boxplot of " + x_variable, fontsize=14)
+    sns.boxplot(data=data, x=x_variable)
+    plt.show()
+
+    print("Descriptive Statistics: \n",
+          data[x_variable].describe(),
+          "\nCounts: \n",
+          data[x_variable].value_counts(normalize = False).sort_index(),
+          "---------------------------------------------------------\n",
+          sep = '\n')
+
+# Loop through each variable in data set and run the function pre-defined
+for col in Alimosho.columns:
+    if col in variables:
+        boxplot(data = Alimosho, x_variable = col)
+
+
+#plotting a distribution of the outlet types
+sns.displot(data   = Alimosho,
+            x      = 'RES Outlet Type',
+            height = 6,
+            aspect = 4)
+
+# Label title & axis
+plt.title(label   = 'Alimosho LGA Outlet Type')
+plt.xlabel(xlabel = 'RES Outlet Type')
+plt.ylabel(ylabel = 'Count')
+
+# Display plot
+plt.show()
+
+
+
+#plotting a distribution of the outlets turnover (using the range provided)
+sns.displot(data   = Alimosho,
+            x      = 'Monthly Store Turnover',
+            height = 6,
+            aspect = 4 )
+
+# Label title & axis
+plt.title(label   = 'Alimosho LGA Outlets Turnover')
+plt.xlabel(xlabel = 'Monthly Store Turnover')
+plt.ylabel(ylabel = 'Count')
+
+
+# Display plot
+plt.show()
+
+#changing dtypes of the column
+
+Alimosho['PH - Non Alcoholic Beverages'] = Alimosho['PH - Non Alcoholic Beverages'].astype('object')
+Alimosho.dtypes
+
+#determining the count of sellers vs non_sellers
+
+# Data
+data = Alimosho['PH - Non Alcoholic Beverages' ]
+
+# Count the number of True and False values
+true_count = sum(data)
+false_count = len(data) - true_count
+
+# Create labels for the chart
+labels = ['True', 'False']
+
+# Create values for the chart
+values = [true_count, false_count]
+
+# Create a bar chart
+plt.bar(labels, values)
+
+# Add a title to the chart
+plt.title('Sell Non_Alcoholic Beverages')
+
+# Display the chart
+plt.show()
+
+
+#cleaning the columns
+#columns dropping
+Ali = Alimosho.drop(Alimosho.loc[:, ['Picture', 'LGA Name','Beverage Retail%']].columns, 
+                         axis=1)
+
+#columns rename
+AliLGA = Ali.rename(columns={"PH - Non Alcoholic Beverages": "_sellLRB"})
+
+# Filter the DataFrame to include only rows with True values in "PH - Non Alcoholic Beverages" column
+Alimosho_filtered = AliLGA[AliLGA["_sellLRB"] == True]
+
+# declare head of filtered data
+Alimosho_filtered.head()
+
+
+#convert the filtered data to CSV
+Alimosho_filtered.to_csv("filtered_data.csv", index=False)
+
+## Encoding
+
+### Monthly Store Turnover
+
+
+
+# Define the custom order for encoding
+custom_order = ['<10,000', '10,000-30,000', '30,000-50,000','50,000-80,000','80,000-100,000',
+          '100,000-200,000', '200,000-300,000','300,000-400,000','400,000-500,000', '500,000-600,000',
+          '600,000-700,000', '700,000-800,000','800,000-900,000', '900,000-1,000,000', '>1,000,000']
+
+# Create a mapping dictionary with the custom order
+mapping_dict = {category: i for i, category in enumerate(custom_order)}
+
+# Create a new column with the encoded values
+Alimosho_filtered['MST Encoded'] = Alimosho_filtered['Monthly Store Turnover'].map(mapping_dict)
+
+# Print the encoded column
+print(Alimosho_filtered['MST Encoded'])
+
+
+We'll leave this part out for now due to "Blackbox". dont know how to encode it ordinally
+
+# ##installing category_encoders
+# #pip install category_encoders
+
+# import category_encoders as ce
+
+# # Create an instance of OrdinalEncoder
+# ordinal_encoder = ce.OrdinalEncoder()
+
+# # Fit the encoder to your categorical variable
+# ordinal_encoder.fit(Alimosho_filtered['Monthly Store Turnover'])
+
+# # Encode the categorical variable
+# encoded_variable = ordinal_encoder.transform(Alimosho_filtered['Monthly Store Turnover'])
+
+# Alimosho_filtered['MST Encoded'] = encoded_variable
+
+# Alimosho_filtered.head()
+
+
+Alimosho_filtered['Monthly Store Turnover'].value_counts()
+
+Alimosho_filtered['MST Encoded'].value_counts()
+
+### Neighbourhood Income Profile
+
+Alimosho_filtered['Neighbourhood Income Profile'].unique()
+
+# Define the custom order for encoding
+custom_order = [ 'Low Class  D/E', 'Medium Class  C', 'High Class  A/B']
+
+# Create a mapping dictionary with the custom order
+mapping_dict = {category: i for i, category in enumerate(custom_order)}
+
+# Create a new column with the encoded values
+Alimosho_filtered['Neighbourhood Encoded'] = Alimosho_filtered['Neighbourhood Income Profile'].map(mapping_dict)
+
+# Print the encoded column
+print(Alimosho_filtered[['Neighbourhood Encoded','Neighbourhood Income Profile']].head(15))
+
+
+Alimosho_filtered['RES Outlet Type'].value_counts()
+
+#declaring info of the filtered data
+Alimosho_filtered.info()
+
+#dropping na of filtered data
+Alimosho_filtered.dropna(inplace=True)
+
+Alimosho_filtered.shape
+
+#replacing the numbers in the data
+Alimosho_filtered.replace([np.inf, -np.inf], np.finfo(np.float64).max, inplace=True)
+
+Alimosho_filtered.shape
+
+## Scaling & Elbow method
+
+# Subset for explanatory variables for stores segmentation
+X = Alimosho_filtered[['Store Selling Area (M2)',
+                       'Beverage Retail Index',
+                       'MST Encoded']]
+
+# Instantiate scaler
+scaler = StandardScaler()
+
+# Fit the scaler with our data for stores segmentation
+scaler.fit(X)
+
+# Scale the data
+X_scaled = scaler.transform(X)
+
+##############################################################################
+# Plot elbow point for optimal K
+
+# Placeholder
+distortions = []
+
+# Number of Ks
+K = range(1, 10)
+
+# Loop through each K
+for k in K:
+    kmeanModel = KMeans(n_clusters=k)
+    kmeanModel.fit(X_scaled)                     # Fit with scaled data
+    distortions.append(kmeanModel.inertia_)      # Append inertia to distortions
+
+# Plot elbow point
+plt.figure(figsize=(14, 7))
+plt.plot(K, distortions, 'bx-')
+plt.xlabel('k')
+plt.ylabel('Distortion')
+plt.title('The Elbow Method showing the optimal k')
+plt.show()
+
+
+## KMeans
+
+# Instantiate number of clusters
+clusterNum = 4
+
+# Instantiate KMEANS model
+k_means = KMeans(init         = "k-means++", 
+                 n_clusters   = clusterNum, 
+                 n_init       = 12,
+                 random_state = 219)
+
+# Fit the model
+k_means.fit(X_scaled)
+
+# Grab each label (segmentation) for each stores
+k_means_labels = k_means.labels_
+
+# Add cluster labels to data set
+Alimosho_filtered["KMEANS_CLUSTERS"] = k_means_labels
+
+
+##############################################################################
+# Plot 
+
+# Count number of churn per month
+clusters = Alimosho_filtered["KMEANS_CLUSTERS"].value_counts()
+
+# Create plot
+ax = clusters.plot(kind='bar', 
+                  legend = True,
+                  figsize = (8,6),
+                  rot = 0,
+                  colormap = "Paired")
+
+
+# Annotate plot with values
+for p in ax.patches:
+    ax.annotate(format(p.get_height(), '.0f'),
+                (p.get_x() + p.get_width() / 2., p.get_height()),
+                ha='center',
+                va='center',
+                xytext=(0, 6),
+                textcoords='offset points')
+
+# Set plot aesthetics
+ax.set_ylabel('#Stores',size = 14)
+ax.set_xlabel('')
+ax.set_title("Stores", size = 14)
+ax.set_xticklabels(labels = ['Stores 01', "Stores 02", "Stores 03", "Stores 04"])
+ax.legend().remove()
+ 
+# Display plot
+plt.show()
+#plt.close()
+
+#declaring to see the full data with the clustering 
+Alimosho_filtered.head(10)
+
+Retail_mean = Alimosho_filtered.groupby('KMEANS_CLUSTERS')['Store Selling Area (M2)'].mean()
+
+plt.figure(figsize=(10, 6))
+
+# Plotting the bar chart or box plot
+plt.bar(Retail_mean.index, Retail_mean.values)
+plt.xlabel('Retail percent')
+plt.ylabel('Mean Store Size')
+plt.title('Mean Store Size by Cluster')
+
+#plt.xticks(rotation=45)
+
+plt.show()
+
+cluster_1 = Alimosho_filtered[Alimosho_filtered['KMEANS_CLUSTERS']==0]
+cluster_1.head()
+
+cluster_2 = Alimosho_filtered[Alimosho_filtered['KMEANS_CLUSTERS']==1]
+cluster_2.head()
+
+cluster_3 = Alimosho_filtered[Alimosho_filtered['KMEANS_CLUSTERS']==2]
+cluster_3.head()
+
+cluster_4 = Alimosho_filtered[Alimosho_filtered['KMEANS_CLUSTERS']==3]
+cluster_4.head()
+
+print(Alimosho_filtered.groupby(['Neighbourhood Income Profile','KMEANS_CLUSTERS']).size().unstack(fill_value=0))
+
+print(Alimosho_filtered.groupby(['RES Outlet Type','KMEANS_CLUSTERS']).size().unstack(fill_value=0))
+
+print(Alimosho_filtered.groupby(['Monthly Store Turnover','KMEANS_CLUSTERS']).size().unstack(fill_value=0))
+
